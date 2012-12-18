@@ -12,7 +12,9 @@ Author URI: http://www.matth.eu
 // An extra level of security but a little bit of a hassle.
 define( 'MPHPF_KEY', hash( 'crc32', AUTH_KEY ) );
 
-class UNDPRK_Private_Files {
+class Mattheu_Private_Files {
+
+	private static $prefix = 'mattheu';
 
 	function init() {
 
@@ -20,24 +22,15 @@ class UNDPRK_Private_Files {
 
 		add_filter( 'wp_get_attachment_url', array( __CLASS__, 'private_file_url' ), 10, 2 );
 
-		// Admin filters.
+		// Is Private Checkbox
 		add_filter( 'attachment_fields_to_edit', array( __CLASS__, 'private_attachment_field' ), 10, 2 );
 		add_filter( 'attachment_fields_to_save', array( __CLASS__, 'private_attachment_field_save' ), 10, 2 );
+
+		// Display private posts filter & query filter.
 		add_filter( 'pre_get_posts', array( __CLASS__, 'hide_private_from_admin_query' ) );
+		add_filter( 'restrict_manage_posts', array( __CLASS__, 'filter_posts_toggle' ) );
 
-
-		add_action( 'admin_menu', function() {
-
-			add_media_page( 'My Plugin Media', 'My Plugin', 'read', 'my-unique-identifier', array( __CLASS__, 'admin_screen' ) );
-
-		} );
-
-
-	}
-
-	function admin_screen() {
-
-		include( trailingslashit( dirname( __FILE__ ) ) . 'admin.php' );
+		add_action( 'attachment_submitbox_misc_actions', array( __CLASS__, 'shortcode_field' ) , 11 );
 
 	}
 
@@ -227,22 +220,37 @@ class UNDPRK_Private_Files {
 	 */
 	function hide_private_from_admin_query( $query ) {
 
-		if ( ! $query->is_main_query() || 'upload' !== get_current_screen()->id )
-			return $query;
+		//if ( 'attachment' == $query->get('post_type') ) {
 
-		$private_posts = get_posts( array( 'meta_key' => 'mphpf_is_private', 'meta_value' => '1', 'meta_compare' => '==', 'numberposts' => -1, 'post_type' => 'attachment' ) );
+			if ( isset( $_GET['private_posts'] ) && 'private' == $_GET['private_posts']  )
+				$query->set( 'meta_query', array(
+					array(
+						'key'   => 'mphpf_is_private',
+						'compare' => 'EXISTS'
+					)
+				));
+			else
+				$query->set( 'meta_query', array(
+					array(
+						'key'   => 'mphpf_is_private',
+						'compare' => 'NOT EXISTS'
+					)
+				));
 
-		$private_post_ids = array(0);
-		foreach( $private_posts as $exclude_post ) {
-			$private_post_ids[] =  $exclude_post->ID;
-		}
-
-		if ( isset( $_GET['private_posts'] ) && $_GET['private_posts'] )
-			$query->set('post__in', $private_post_ids );
-		else
-			$query->set('post__not_in', $private_post_ids );
+		//}
 
 		return $query;
+
+	}
+
+	/**
+	 * Output toggle for filtering private/public posts in list table.
+	 */
+	function filter_posts_toggle() {
+
+		$is_private_filter_on = isset( $_GET['private_posts'] ) && 'private' == $_GET['private_posts'];
+		echo '<label style="margin: 0 5px;"><input type="radio" name="private_posts" value="public" ' . checked( $is_private_filter_on, false, false ) . ' style="margin-top: -1px; margin-right: 2x;"/> Public</label>';
+		echo '<label style="margin: 0 5px;"><input type="radio" name="private_posts" value="private" ' . checked( $is_private_filter_on, true, false ) . ' style="margin-top: -1px; margin-right: 2x;"/> Private</label>';
 
 	}
 
@@ -268,22 +276,19 @@ class UNDPRK_Private_Files {
 
 	}
 
+	function shortcode_field() {
+
+		$shortcode = '[file id="' . get_the_ID() . '" ]';
+
+		?>
+		<div class="misc-pub-section">
+			<label for="attachment_url"><?php _e( 'File Shortcode:' ); ?></label>
+			<input type="text" class="widefat urlfield" readonly="readonly" name="attachment_url" value="<?php echo esc_attr($shortcode); ?>" />
+		</div>
+		<?php
+	}
 
 }
 
-UNDPRK_Private_Files::init();
+Mattheu_Private_Files::init();
 
-
-/**
- * Filter by private files link above list table.
- */
-function mphpf_filter_list_table_views( $views ) {
-
-	$url = add_query_arg( array( 'private_posts'=>'true', 'post_mime_type'=>'all', 'paged'=>false ), 'upload.php' );
-	$private_posts = get_posts( array( 'meta_key' => 'mphpf_is_private', 'meta_value' => '1', 'meta_compare' => '==', 'numberposts' => -1, 'post_type' => 'attachment' ) );
-	$views[] = '<a class="' . ( ( isset( $_GET['private_posts'] ) ) ? 'current' : null ) . '" href="' . esc_url( $url ) . '">Private <span class="count">(' . count( $private_posts ) . ')</span></a>';
-
-	return $views;
-
-}
-add_filter( 'views_upload', 'mphpf_filter_list_table_views' );
