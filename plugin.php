@@ -27,10 +27,15 @@ class Mattheu_Private_Files {
 		add_filter( 'attachment_fields_to_save', array( __CLASS__, 'private_attachment_field_save' ), 10, 2 );
 
 		// Display private posts filter & query filter.
-		add_filter( 'pre_get_posts', array( __CLASS__, 'hide_private_from_admin_query' ) );
+		add_filter( 'pre_get_posts', array( __CLASS__, 'hide_private_from_query' ) );
 		add_filter( 'restrict_manage_posts', array( __CLASS__, 'filter_posts_toggle' ) );
 
+		// Shortcode
 		add_action( 'attachment_submitbox_misc_actions', array( __CLASS__, 'shortcode_field' ) , 11 );
+		add_shortcode('file', array( __CLASS__, 'shortcode_function' ) );
+
+		// Styles
+		add_action( 'admin_head', array( __CLASS__, 'post_edit_style' ) );
 
 	}
 
@@ -213,14 +218,25 @@ class Mattheu_Private_Files {
 	}
 
 	/**
-	 * Filter query to hide private posts in admin
+	 * Filter query to hide private posts.
+	 *
+	 * Hide from any query by default.
+	 * Set 404 for attachments in front end is not logged in.
 	 *
 	 * @param  object $query
 	 * @return object $query
 	 */
-	function hide_private_from_admin_query( $query ) {
+	function hide_private_from_query( $query ) {
 
-		//if ( 'attachment' == $query->get('post_type') ) {
+
+		if ( ! is_admin() && $attachment_id = $query->get( 'attachment_id')  )
+			if ( self::is_attachment_private( $attachment_id ) && ! is_user_logged_in() ) {
+				$query->set_404();
+				return;
+			}
+
+
+		if ( 'attachment' == $query->get('post_type') ) {
 
 			if ( isset( $_GET['private_posts'] ) && 'private' == $_GET['private_posts']  )
 				$query->set( 'meta_query', array(
@@ -237,7 +253,7 @@ class Mattheu_Private_Files {
 					)
 				));
 
-		//}
+		}
 
 		return $query;
 
@@ -249,8 +265,8 @@ class Mattheu_Private_Files {
 	function filter_posts_toggle() {
 
 		$is_private_filter_on = isset( $_GET['private_posts'] ) && 'private' == $_GET['private_posts'];
-		echo '<label style="margin: 0 5px;"><input type="radio" name="private_posts" value="public" ' . checked( $is_private_filter_on, false, false ) . ' style="margin-top: -1px; margin-right: 2x;"/> Public</label>';
-		echo '<label style="margin: 0 5px;"><input type="radio" name="private_posts" value="private" ' . checked( $is_private_filter_on, true, false ) . ' style="margin-top: -1px; margin-right: 2x;"/> Private</label>';
+		echo '<label style="margin: 0 5px 0 10px;"><input type="radio" name="private_posts" value="public" ' . checked( $is_private_filter_on, false, false ) . ' style="margin-top: -1px; margin-right: 2px;"/> Public</label>';
+		echo '<label style="margin: 0 10px 0 5px;"><input type="radio" name="private_posts" value="private" ' . checked( $is_private_filter_on, true, false ) . ' style="margin-top: -1px; margin-right: 2px;"/> Private</label>';
 
 	}
 
@@ -288,7 +304,42 @@ class Mattheu_Private_Files {
 		<?php
 	}
 
+	/**
+	 * Output link to file if user is logged in.
+	 * @param  [type] $atts [description]
+	 * @return [type]       [description]
+	 */
+	function shortcode_function($atts) {
+
+		if ( ! isset( $atts['id'] ) )
+			return;
+
+		if ( self::is_attachment_private( $atts['id'] ) && ! is_user_logged_in() )
+			$link = 'You must be logged in to access this file.';
+		elseif ( isset( $atts['attachment_page'] ) )
+			$link = wp_get_attachment_link( $atts['id'] );
+		else
+			$link = sprintf( '<a href="%s">%s</a>', esc_url( wp_get_attachment_url( $atts['id'] ) ), esc_html( basename( wp_get_attachment_url( $atts['id'] ) ) ) );
+
+		return $link;
+
+	}
+
+	function post_edit_style() {
+
+		if ( self::is_attachment_private( get_the_ID() ) )
+			echo '<style>#titlediv { padding-left: 60px;}</style>';
+
+	}
+
 }
 
 Mattheu_Private_Files::init();
 
+
+
+// add_filter( 'bulk_actions-upload', function( $actions ) {
+// 	$actions['make_private'] = 'Set as Private';
+// 	$actions['make_public'] = 'Set as Public';
+// 	return $actions;
+// } );
