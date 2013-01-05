@@ -335,11 +335,3 @@ class Mattheu_Private_Files {
 }
 
 Mattheu_Private_Files::init();
-
-
-
-// add_filter( 'bulk_actions-upload', function( $actions ) {
-// 	$actions['make_private'] = 'Set as Private';
-// 	$actions['make_public'] = 'Set as Public';
-// 	return $actions;
-// } );
