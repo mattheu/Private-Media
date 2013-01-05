@@ -45,6 +45,39 @@ class Mattheu_Private_Files {
 
 	}
 
+	function can_user_view( $attachment, $user_id = null ) {
+
+		$user_id = ( $user_id ) ? $user_id : get_current_user_id();
+
+		if ( ! is_numeric( $attachment ) ) {
+
+			$attachment_post = new WP_Query( array(
+				'post_type' => 'attachment',
+				'showposts' => 1,
+				'post_status' => 'inherit',
+				'name' => $attachment,
+				'show_private' => true
+			) );
+
+			if ( empty( $attachment_post->posts ) )
+				return;
+
+			$attachment = reset( $attachment_post->posts )->ID;
+
+		}
+
+		if ( ! $attachment )
+			return false;
+
+		$private_status = get_post_meta( $attachment, 'mphpf_is_private', true );
+
+		if ( ! empty( $private_status ) && ! is_user_logged_in() )
+			return false;
+
+		return true;
+
+	}
+
 	function auth_redirect() {
 
 		auth_redirect();
