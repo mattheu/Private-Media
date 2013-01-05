@@ -261,15 +261,20 @@ class Mattheu_Private_Files {
 	 */
 	function hide_private_from_query( $query ) {
 
+		if ( ! is_admin() ) {
 
-		if ( ! is_admin() && $attachment_id = $query->get( 'attachment_id')  )
-			if ( self::is_attachment_private( $attachment_id ) && ! is_user_logged_in() ) {
+			$attachment = ( $query->get( 'attachment_id') ) ? $query->get( 'attachment_id') : $query->get( 'attachment');
+
+			if ( $attachment && ! self::can_user_view( $attachment ) ) {
+
 				$query->set_404();
 				return;
+
 			}
 
+		}
 
-		if ( 'attachment' == $query->get('post_type') ) {
+		if ( 'attachment' == $query->get('post_type') && ! $query->get('show_private') ) {
 
 			if ( isset( $_GET['private_posts'] ) && 'private' == $_GET['private_posts']  )
 				$query->set( 'meta_query', array(
@@ -360,7 +365,7 @@ class Mattheu_Private_Files {
 
 	function post_edit_style() {
 
-		if ( self::is_attachment_private( get_the_ID() ) )
+		if ( is_admin() && 'attachment' == get_current_screen()->id && self::is_attachment_private( get_the_id() ) )
 			echo '<style>#titlediv { padding-left: 60px;}</style>';
 
 	}
