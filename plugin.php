@@ -8,68 +8,80 @@ Version: 1.0.5
 Author URI: http://www.matth.eu
 */
 
+/*
+	TODO
+	nonce verification?
+ */
+
+// Admin Notices Abstraction.
+require( 'class.mph-minify-notices.php' );
+
 // Hash for obscuring upload dir.
 // An extra level of security but a little bit of a hassle.
 define( 'MPHPF_KEY', hash( 'crc32', AUTH_KEY ) );
 
+// Action;
+$var = new Mattheu_Private_Files();
+
 class Mattheu_Private_Files {
 
-	private static $prefix = 'mattheu';
+	private $prefix = 'mphpf';
+	private $admin_notices;
 
-	function init() {
+	function __construct() {
 
-		add_action( 'init', array( __CLASS__, 'rewrite_rules' ) );
+		add_action( 'init', array( $this, 'rewrite_rules' ) );
 
-		add_filter( 'wp_get_attachment_url', array( __CLASS__, 'private_file_url' ), 10, 2 );
+		add_filter( 'wp_get_attachment_url', array( $this, 'private_file_url' ), 10, 2 );
 
 		// Is Private Checkbox
-		add_filter( 'attachment_fields_to_edit', array( __CLASS__, 'private_attachment_field' ), 10, 2 );
-		add_filter( 'attachment_fields_to_save', array( __CLASS__, 'private_attachment_field_save' ), 10, 2 );
+		add_action( 'attachment_submitbox_misc_actions', array( $this, 'private_attachment_field' ) , 11 );
+		add_filter( 'attachment_fields_to_save', array( $this, 'private_attachment_field_save' ), 10, 2 );
 
 		// Display private posts filter & query filter.
-		add_filter( 'pre_get_posts', array( __CLASS__, 'hide_private_from_query' ) );
-		add_filter( 'restrict_manage_posts', array( __CLASS__, 'filter_posts_toggle' ) );
+		add_filter( 'pre_get_posts', array( $this, 'hide_private_from_query' ) );
+		add_filter( 'restrict_manage_posts', array( $this, 'filter_posts_toggle' ) );
 
 		// Shortcode
-		add_action( 'attachment_submitbox_misc_actions', array( __CLASS__, 'shortcode_field' ) , 11 );
-		add_shortcode('file', array( __CLASS__, 'shortcode_function' ) );
+		add_action( 'attachment_submitbox_misc_actions', array( $this, 'shortcode_field' ) , 11 );
+		add_shortcode('file', array( $this, 'shortcode_function' ) );
 
 		// Styles
-		add_action( 'admin_head', array( __CLASS__, 'post_edit_style' ) );
+		add_action( 'admin_head', array( $this, 'post_edit_style' ) );
+
+		$this->admin_notices = new MPH_Admin_Notices( $this->prefix . '_private_media' );
 
 	}
 
+	/**
+	 * Check if attachment is private
+	 *
+	 * @param  int $attachment_id
+	 * @return boolean
+	 */
 	function is_attachment_private( $attachment_id ) {
 
 		return get_post_meta( $attachment_id, 'mphpf_is_private', true );
 
 	}
 
-	function can_user_view( $attachment, $user_id = null ) {
+	/**
+	 * Check if current user can view attachment
+	 *
+	 * @todo  allow this to be filtered for more advanced use.
+	 *
+	 * @param  int $attachment_id
+	 * @param  int $user_id (if not passed, assumed current user)
+	 * @return boolean
+	 */
+	function can_user_view( $attachment_id, $user_id = null ) {
 
 		$user_id = ( $user_id ) ? $user_id : get_current_user_id();
 
-		if ( ! is_numeric( $attachment ) ) {
-
-			$attachment_post = new WP_Query( array(
-				'post_type' => 'attachment',
-				'showposts' => 1,
-				'post_status' => 'inherit',
-				'name' => $attachment,
-				'show_private' => true
-			) );
-
-			if ( empty( $attachment_post->posts ) )
-				return;
-
-			$attachment = reset( $attachment_post->posts )->ID;
-
-		}
-
-		if ( ! $attachment )
+		if ( ! $attachment_id )
 			return false;
 
-		$private_status = get_post_meta( $attachment, 'mphpf_is_private', true );
+		$private_status = $this->is_attachment_private( $attachment_id );
 
 		if ( ! empty( $private_status ) && ! is_user_logged_in() )
 			return false;
@@ -78,6 +90,35 @@ class Mattheu_Private_Files {
 
 	}
 
+	/**
+	 * Get attachment id from attachment name
+	 *
+	 * @todo  surely this isn't the best way to do this?
+	 * @param  [type] $attachment [description]
+	 * @return [type]             [description]
+	 */
+	function get_attachment_id_from_name( $attachment ) {
+
+		$attachment_post = new WP_Query( array(
+			'post_type' => 'attachment',
+			'showposts' => 1,
+			'post_status' => 'inherit',
+			'name' => $attachment,
+			'show_private' => true
+		) );
+
+		if ( empty( $attachment_post->posts ) )
+			return;
+
+		return reset( $attachment_post->posts )->ID;
+
+	}
+
+	/**
+	 * Redirect if authentication is required.
+	 *
+	 * @return null
+	 */
 	function auth_redirect() {
 
 		auth_redirect();
@@ -112,7 +153,7 @@ class Mattheu_Private_Files {
 
 	function rewrite_rules() {
 
-		$private_dir = self::mphpf_get_private_dir( true );
+		$private_dir = $this->mphpf_get_private_dir( true );
 
 		hm_add_rewrite_rule( array(
 			'regex' => '^content/uploads/private-files/([^*]+)/([^*]+)?$',
@@ -129,12 +170,12 @@ class Mattheu_Private_Files {
 		$file_name = $wp->query_vars['file_name'];
 
 		if ( ! $file = get_post( $file_id ) )
-			self::auth_redirect();
+			$this->auth_redirect();
 
 		$wp_attached_file = get_post_meta( $file_id, '_wp_attached_file', true );
 
-		if ( ( self::is_attachment_private( $file_id ) && ! is_user_logged_in() ) || empty( $wp_attached_file ) )
-			self::auth_redirect();
+		if ( ( $this->is_attachment_private( $file_id ) && ! is_user_logged_in() ) || empty( $wp_attached_file ) )
+			$this->auth_redirect();
 
 		$uploads = wp_upload_dir();
 		$file_path = trailingslashit( $uploads['basedir'] ) . $wp_attached_file;
@@ -149,25 +190,20 @@ class Mattheu_Private_Files {
 	}
 
 	/**
-	 * Add 'is private' checkbox to edit attachment screen
+	 * Add 'Make file private' checkbox to edit attachment screen
 	 *
-	 * @return [type]         [description]
+	 * Adds the setting field to the submit box.
 	 */
-	function private_attachment_field( $fields, $post ) {
+	function private_attachment_field() {
 
-		$is_private = self::is_attachment_private( $post->ID );
+		$is_private = $this->is_attachment_private( get_the_id() );
 
-		$html  = '<input type="checkbox" id="mphpf1" name="attachments[' . $post->ID . '][mphpf]" ' . checked( $is_private, true, false ) . 'style="margin-right: 5px;"/> ';
-		$html .= '<label for="mphpf1">Make this file private</label>';
-
-		$fields['mphpf'] = array(
-	    	'label' => 'Private Files',
-	    	'input' => 'html',
-	    	'html' => $html
-	    );
-
-	    return $fields;
-
+		?>
+		<div class="misc-pub-section">
+			<label for="mphpf2"><input type="checkbox" id="mphpf2" name="<?php echo $this->prefix; ?>_is_private" <?php checked( $is_private, true ); ?> style="margin-right: 5px;"/>
+			Make this file private</label>
+		</div>
+		<?php
 	}
 
 	/**
@@ -180,22 +216,31 @@ class Mattheu_Private_Files {
 	 */
 	function private_attachment_field_save( $post, $attachment ) {
 
+		//error_log( print_r( $_POST, true ) );
 		$uploads = wp_upload_dir();
 		$creds   = request_filesystem_credentials( add_query_arg( null, null ) );
 
 		if ( ! $creds ) {
 
-
+			// Handle Error.
+			// We can't actually display the form here because this is a filter and the page redirects and it will not be shown.
+			$message = '<strong>Private Media Error</strong> WordPress is not able to write files';
+			$this->admin_notices->add_notice( $message, false, 'error' );
+			return $post;
 		}
 
 		if ( $creds && WP_Filesystem( $creds ) ) {
 
 			global $wp_filesystem;
 
-			if ( isset( $attachment['mphpf'] ) && $attachment['mphpf'] == 'on' ) {
+			//$setting = $attachment['mphpf'];
+			$make_private = isset( $_POST[$this->prefix .'_is_private'] ) && 'on' == $_POST[$this->prefix .'_is_private'];
+
+			$new_location = null;
+
+			if ( $make_private ) {
 
 				$old_location = get_post_meta( $post['ID'], '_wp_attached_file', true );
-
 				if ( $old_location && false === strpos( $old_location, 'private-files-' . MPHPF_KEY ) )
 					$new_location = 'private-files-' . MPHPF_KEY . '/' . $old_location;
 
@@ -234,7 +279,7 @@ class Mattheu_Private_Files {
 				// @todo handle errors.
 			}
 
-			if ( isset( $attachment['mphpf'] ) && $attachment['mphpf'] == 'on' )
+			if ( $make_private )
 				update_post_meta( $post['ID'], 'mphpf_is_private', true );
 			else
 				delete_post_meta( $post['ID'], 'mphpf_is_private' );
@@ -253,8 +298,9 @@ class Mattheu_Private_Files {
 	/**
 	 * Filter query to hide private posts.
 	 *
-	 * Hide from any query by default.
-	 * Set 404 for attachments in front end is not logged in.
+	 * Set 404 for attachments in front end if user does not have permission to view file.
+	 * Hide from any attachment query by default.
+	 * If the 'show_private' query var is set, show only private.
 	 *
 	 * @param  object $query
 	 * @return object $query
@@ -265,7 +311,10 @@ class Mattheu_Private_Files {
 
 			$attachment = ( $query->get( 'attachment_id') ) ? $query->get( 'attachment_id') : $query->get( 'attachment');
 
-			if ( $attachment && ! self::can_user_view( $attachment ) ) {
+			if ( ! is_numeric( $attachment ) )
+				$attachment = $this->get_attachment_id_from_name( $attachment );
+
+			if ( $attachment && ! $this->can_user_view( $attachment ) ) {
 
 				$query->set_404();
 				return;
@@ -298,28 +347,37 @@ class Mattheu_Private_Files {
 	}
 
 	/**
-	 * Output toggle for filtering private/public posts in list table.
+	 * Output select field for filtering media by public/private.
+	 *
+	 * @return null
 	 */
 	function filter_posts_toggle() {
 
 		$is_private_filter_on = isset( $_GET['private_posts'] ) && 'private' == $_GET['private_posts'];
-		echo '<label style="margin: 0 5px 0 10px;"><input type="radio" name="private_posts" value="public" ' . checked( $is_private_filter_on, false, false ) . ' style="margin-top: -1px; margin-right: 2px;"/> Public</label>';
-		echo '<label style="margin: 0 10px 0 5px;"><input type="radio" name="private_posts" value="private" ' . checked( $is_private_filter_on, true, false ) . ' style="margin-top: -1px; margin-right: 2px;"/> Private</label>';
+
+		?>
+
+		<select name="private_posts">
+			<option <?php selected( $is_private_filter_on, false ); ?> value="public">Public</option>
+			<option <?php selected( $is_private_filter_on, true ); ?> value="private">Private</option>
+		</select>
+
+		<?php
 
 	}
 
 	/**
 	 * Filter attachment url.
-	 * If private return public facing private file url - uses rewrite to serve file content.
-	 * 'Real' file location should be obscured.
+	 * If private return the 'public' private file url
+	 * Rewrite rule used to serve file content and 'Real' file location is obscured.
 	 *
-	 * @param  [type] $url           [description]
-	 * @param  [type] $attachment_id [description]
-	 * @return [type]                [description]
+	 * @param  string $url
+	 * @param  int $attachment_id
+	 * @return string file url.
 	 */
 	function private_file_url( $url, $attachment_id ) {
 
-		if ( self::is_attachment_private( $attachment_id ) ) {
+		if ( $this->is_attachment_private( $attachment_id ) ) {
 
 			$uploads = wp_upload_dir();
 			return trailingslashit( $uploads['baseurl'] ) . 'private-files/' . $attachment_id . '/' . basename($url);
@@ -330,6 +388,13 @@ class Mattheu_Private_Files {
 
 	}
 
+	/**
+	 * Shortcode Field
+	 *
+	 * Add a readonly input field containing the current file shortcode to the submitbox of the edit attachment page.
+	 *
+	 * @return null
+	 */
 	function shortcode_field() {
 
 		$shortcode = '[file id="' . get_the_ID() . '" ]';
@@ -344,15 +409,17 @@ class Mattheu_Private_Files {
 
 	/**
 	 * Output link to file if user is logged in.
-	 * @param  [type] $atts [description]
-	 * @return [type]       [description]
+	 * Else output a message.
+	 *
+	 * @param  array $atts shortcode attributes
+	 * @return string shortcode output.
 	 */
 	function shortcode_function($atts) {
 
 		if ( ! isset( $atts['id'] ) )
 			return;
 
-		if ( self::is_attachment_private( $atts['id'] ) && ! is_user_logged_in() )
+		if ( $this->is_attachment_private( $atts['id'] ) && ! is_user_logged_in() )
 			$link = 'You must be logged in to access this file.';
 		elseif ( isset( $atts['attachment_page'] ) )
 			$link = wp_get_attachment_link( $atts['id'] );
@@ -363,13 +430,28 @@ class Mattheu_Private_Files {
 
 	}
 
+	/**
+	 * Insert CSS into admin head on edit attachment screen fro private files.
+	 *
+	 * @return null
+	 */
 	function post_edit_style() {
 
-		if ( is_admin() && 'attachment' == get_current_screen()->id && self::is_attachment_private( get_the_id() ) )
-			echo '<style>#titlediv { padding-left: 60px;}</style>';
+		$icon_url = trailingslashit( plugin_dir_url( __FILE__ ) ) . 'assets/icon_lock.png';
+		$icon_url_2x = trailingslashit( plugin_dir_url( __FILE__ ) ) . 'assets/icon_lock@2x.png';
+
+		if ( is_admin() && 'attachment' == get_current_screen()->id && $this->is_attachment_private( get_the_id() ) ) : ?>
+
+			<style>
+				#titlediv { padding-left: 60px; }
+				#titlediv::before { content: ' '; display: block; height: 26px; width: 21px; background: url(<?php echo $icon_url; ?>) no-repeat center center; position: relative; float: left; margin-left: -40px; top: 4px; }
+				@media only screen and ( -webkit-min-device-pixel-ratio : 1.5 ), only screen and ( min-device-pixel-ratio : 1.5 ) {
+					#titlediv::before { background-image: url(<?php echo $icon_url_2x; ?>); }
+				}
+			</style>
+
+		<?php endif;
 
 	}
 
 }
-
-Mattheu_Private_Files::init();
