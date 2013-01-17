@@ -311,13 +311,13 @@ class Mattheu_Private_Files {
 
 			$attachment = ( $query->get( 'attachment_id') ) ? $query->get( 'attachment_id') : $query->get( 'attachment');
 
-			if ( ! is_numeric( $attachment ) )
+			if ( $attachment && ! is_numeric( $attachment ) )
 				$attachment = $this->get_attachment_id_from_name( $attachment );
 
 			if ( $attachment && ! $this->can_user_view( $attachment ) ) {
 
 				$query->set_404();
-				return;
+				return $query;
 
 			}
 
