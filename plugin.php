@@ -159,7 +159,7 @@ class Mattheu_Private_Files {
 			'regex' => '^content/uploads/private-files/([^*]+)/([^*]+)?$',
 			'query' => 'file_id=$matches[1]&file_name=$matches[2]',
 			'request_method' => 'get',
-			'request_callback' => array( __class__, 'rewrite_callback' )
+			'request_callback' => array( $this, 'rewrite_callback' )
 		) );
 
 	}
