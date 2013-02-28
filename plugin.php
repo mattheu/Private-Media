@@ -142,7 +142,16 @@ class Mattheu_Private_Files {
 		if ( ! is_dir( trailingslashit( $upload_dir['basedir'] ) . $dirname ) )
 			wp_mkdir_p( trailingslashit( $upload_dir['basedir'] ) . $dirname );
 
-		// @todo maybe create .htaccess
+		$htaccess = trailingslashit( $upload_dir['basedir'] ) . $dirname . '/.htaccess';
+
+		if ( ! file_exists( $htaccess ) && function_exists( 'insert_with_markers' ) && is_writable( dirname( $htaccess ) ) ) {
+
+			$contents[]	= "# This .htaccess file ensures that other people cannot download your private files.\n\n";
+			$contents[] = "deny from all";
+
+			insert_with_markers( $htaccess, 'mphpf', $contents );
+
+		}
 
 		if ( $path )
 			return trailingslashit( $upload_dir['basedir'] ) . $dirname;
@@ -152,8 +161,6 @@ class Mattheu_Private_Files {
 	}
 
 	function rewrite_rules() {
-
-		$private_dir = $this->mphpf_get_private_dir( true );
 
 		hm_add_rewrite_rule( array(
 			'regex' => '^content/uploads/private-files/([^*]+)/([^*]+)?$',
@@ -216,12 +223,12 @@ class Mattheu_Private_Files {
 	 */
 	function private_attachment_field_save( $post, $attachment ) {
 
-		//error_log( print_r( $_POST, true ) );
 		$uploads = wp_upload_dir();
 		$creds   = request_filesystem_credentials( add_query_arg( null, null ) );
 
-		if ( ! $creds ) {
+		$this->mphpf_get_private_dir( true );
 
+		if ( ! $creds ) {
 			// Handle Error.
 			// We can't actually display the form here because this is a filter and the page redirects and it will not be shown.
 			$message = '<strong>Private Media Error</strong> WordPress is not able to write files';
@@ -233,7 +240,6 @@ class Mattheu_Private_Files {
 
 			global $wp_filesystem;
 
-			//$setting = $attachment['mphpf'];
 			$make_private = isset( $_POST[$this->prefix .'_is_private'] ) && 'on' == $_POST[$this->prefix .'_is_private'];
 
 			$new_location = null;
