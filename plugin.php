@@ -173,9 +173,6 @@ class Mattheu_Private_Files {
 
 	function rewrite_callback( $wp ) {
 
-		//hm_log( $wp );
-
-
 		if ( ! empty( $wp->query_vars['file_id'] ) )
 			$file_id = $wp->query_vars['file_id'];
 
