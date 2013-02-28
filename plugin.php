@@ -171,12 +171,27 @@ class Mattheu_Private_Files {
 
 	}
 
-	function rewrite_callback( WP $wp ) {
+	function rewrite_callback( $wp ) {
 
-		$file_id = $wp->query_vars['file_id'];
-		$file_name = $wp->query_vars['file_name'];
+		//hm_log( $wp );
 
-		if ( ! $file = get_post( $file_id ) )
+
+		if ( ! empty( $wp->query_vars['file_id'] ) )
+			$file_id = $wp->query_vars['file_id'];
+
+		if ( ! empty( $wp->query_vars['file_name'] ) )
+			$file_name = $wp->query_vars['file_name'];
+
+		// Legagcy
+		if ( empty( $file_id ) ) {
+ 			preg_match( "#(&|^)file_id=([^&$]+)#", $wp->matched_query, $file_id_matches );
+ 			if ( $file_id_matches )
+ 				$file_id = $file_id_matches[2];
+			preg_match( "#(&|^)file_name=([^&$]+)#", $wp->matched_query, $file_name_matches );
+				$file_name = $file_name_matches[2];
+		}
+
+		if ( ! isset( $file_id ) || isset( $file_id ) && ! $file = get_post( $file_id ) )
 			$this->auth_redirect();
 
 		$wp_attached_file = get_post_meta( $file_id, '_wp_attached_file', true );
