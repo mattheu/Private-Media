@@ -18,7 +18,7 @@ require( 'class.mph-minify-notices.php' );
 
 // Hash for obscuring upload dir.
 // An extra level of security but a little bit of a hassle.
-define( 'MPHPF_KEY', hash( 'crc32', AUTH_KEY ) );
+define( 'MPHPF_KEY', hash( 'md5', AUTH_KEY ) );
 
 // Action;
 $var = new Mattheu_Private_Files();
