@@ -1,9 +1,9 @@
 === Private Media ===
 Contributors: mattheu
 Tags: private, media, files
-Requires at least: 3.5
-Tested up to: 3.5
-Stable tag: 0.1
+Requires at least: 4.5
+Tested up to: 4.7
+Stable tag: 1.0.6
 
 Make files in the WordPress media library private. These are only accessible to logged in users.
 
@@ -23,3 +23,9 @@ Access to Private files attachment pages in the front end is restricted. Will re
 
 * Install & Activate the plugin.
 * Edit an attachment, and check the private files option to set an attachment as private.
+
+== Changelog ==
+
+= 1.0.6 =
+* WordPress 4.7 compatibility
+* Fix the rewrite rule to use the correct base url
