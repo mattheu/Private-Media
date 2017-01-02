@@ -4,7 +4,7 @@
 Plugin Name: Private Files (MPH)
 Description: Upload files that are only accessable to logged in users.
 Author: Matthew Haines-Young
-Version: 1.0.5
+Version: 1.0.6
 Author URI: http://www.matth.eu
 */
 
