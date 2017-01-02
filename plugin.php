@@ -162,8 +162,12 @@ class Mattheu_Private_Files {
 
 	function rewrite_rules() {
 
+		$uploads = wp_upload_dir();
+		$base_url = parse_url( $uploads['baseurl'] );
+		$base_url = trim( $base_url['path'], ' /' );
+
 		hm_add_rewrite_rule( array(
-			'regex' => '^content/uploads/private-files/([^*]+)/([^*]+)?$',
+			'regex' => '^'.$base_url.'/private-files/([^*]+)/([^*]+)?$',
 			'query' => 'file_id=$matches[1]&file_name=$matches[2]',
 			'request_method' => 'get',
 			'request_callback' => array( $this, 'rewrite_callback' )
